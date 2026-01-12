@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "types": ["bun-types", "@types/node"],
+    
+    // Strict type checking
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    
+    // Path aliases
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/db": ["./src/db"],
+      "@/modules/*": ["./src/modules/*"],
+      "@/libs/*": ["./src/libs/*"],
+      "@/types": ["./src/types"]
+    },
+    
+    // Others
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["src/**/*", "test/**/*", "drizzle.config.ts"],
+  "exclude": ["node_modules"]
+}
