@@ -12,9 +12,9 @@ import {
 } from './service'
 
 export const postingsModule = new Elysia({ prefix: '/postings', name: 'postings-module' })
-  // Note: Middleware is applied on a per-route basis here
 
   // ==================== CREATE NEW POSTING ====================
+  .use(requireVerifiedSeller) // ✅ FIXED: Use middleware first
   .post(
     '/',
     async ({ sellerUser, body, set }) => {
@@ -29,7 +29,6 @@ export const postingsModule = new Elysia({ prefix: '/postings', name: 'postings-
       }
     },
     {
-      beforeHandle: requireVerifiedSeller, // Protect this specific route
       body: createPostingSchema,
       response: createPostingResponseSchema,
       detail: {
