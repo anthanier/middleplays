@@ -11,6 +11,34 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
       stack: errorStack,
     })
 
+    // Check for specific business logic errors (BEFORE switch statement)
+    if (errorMessage.includes('Email already registered')) {
+      set.status = 400
+      return {
+        success: false,
+        error: 'Bad Request',
+        message: 'Email already registered',
+      }
+    }
+
+    if (errorMessage.includes('Invalid email or password')) {
+      set.status = 400
+      return {
+        success: false,
+        error: 'Bad Request',
+        message: 'Invalid email or password',
+      }
+    }
+
+    if (errorMessage.includes('Unauthorized')) {
+      set.status = 401
+      return {
+        success: false,
+        error: 'Unauthorized',
+        message: errorMessage,
+      }
+    }
+
     switch (code) {
       case 'VALIDATION':
         set.status = 400

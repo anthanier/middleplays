@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
-import { getApp } from './test-setup'
+import { getApp, clearRateLimits, clearDatabase } from './test-setup'
 import { registerAndLoginUser } from './utils'
 import { db } from '@/db'
 import { games, gameAccounts, users } from '@/db/schema'
@@ -12,8 +12,10 @@ describe('Transactions Module', () => {
   let gameData: any;
   let postingData: any;
   let app: any;
+  let skipPostingCreation = false;
 
   beforeEach(async () => {
+    await clearRateLimits()
     app = getApp(); // Get app instance for each test
     // 1. Create seller, buyer, and a game
     [sellerData, buyerData] = await Promise.all([
@@ -30,24 +32,26 @@ describe('Transactions Module', () => {
       isActive: true,
     }).returning();
 
-    // 2. Seller creates a posting
-    const createdPosting = await db.insert(gameAccounts).values({
-        sellerId: sellerData.userId,
-        gameId: gameData.id,
-        title: `Account for Purchase Test - ${createId()}`,
-        price: '125000',
-        details: { power: 100 },
-        credentialsEncrypted: 'dummy-encrypted-data',
-        loginMethod: 'email',
-        images: ['http://example.com/img.png'],
-        status: 'active',
-    }).returning();
-    postingData = createdPosting[0];
+    // 2. Seller creates a posting (unless we're testing already-sold scenario)
+    if (!skipPostingCreation) {
+      const createdPosting = await db.insert(gameAccounts).values({
+          sellerId: sellerData.userId,
+          gameId: gameData.id,
+          title: `Account for Purchase Test - ${createId()}`,
+          price: '125000',
+          details: { power: 100 },
+          credentialsEncrypted: 'dummy-encrypted-data',
+          loginMethod: 'email',
+          images: ['http://example.com/img.png'],
+          status: 'active',
+      }).returning();
+      postingData = createdPosting[0];
+    }
   });
   
   afterEach(async () => {
-    if (gameData) await db.delete(games).where(eq(games.id, gameData.id));
-    // Clean up users created by registerAndLoginUser if necessary for strict isolation
+    // Don't delete games here - they might have references
+    // The global clearDatabase will handle cleanup
   });
 
   it('should not allow a user to purchase their own posting', async () => {
@@ -62,7 +66,7 @@ describe('Transactions Module', () => {
         })
     );
 
-    expect(res.status).toBe(500); // Internal Server Error in Elysia from unhandled Throw
+    expect(res.status).toBe(400); // Bad Request from error handler
     const body = await res.json();
     expect(body.message).toBe('You cannot purchase your own posting.');
   });
@@ -88,8 +92,9 @@ describe('Transactions Module', () => {
   });
 
   it('should not allow a user to purchase an already sold posting', async () => {
-    const app = getApp(); // Get app instance for each test
-    // The posting status was set to 'sold' in the previous test
+    // Mark the posting as sold manually
+    await db.update(gameAccounts).set({ status: 'sold' }).where(eq(gameAccounts.id, postingData.id));
+    
     const anotherBuyer = await registerAndLoginUser('user');
     const res = await app.handle(
         new Request('http://localhost/transactions/purchase', {
@@ -102,7 +107,7 @@ describe('Transactions Module', () => {
         })
     );
     
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400); // Bad Request - account no longer available
     const body = await res.json();
     expect(body.message).toBe('This account is no longer available for purchase.');
   });

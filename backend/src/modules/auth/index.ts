@@ -20,35 +20,50 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth' })
   // ==================== REGISTER ====================
   .post(
     '/register',
-    async ({ body, jwt, jwtRefresh, checkRateLimit, request }) => {
-      // Rate limiting for registration
-      const ip = request.headers.get('x-forwarded-for') || 'unknown'
-      await checkRateLimit(`register:${ip}`, {
-        max: 5, // 5 registrations
-        window: 3600, // per hour
-      })
+    async ({ body, jwt, jwtRefresh, checkRateLimit, request, set }) => {
+      try {
+        // Rate limiting for registration
+        const ip = request.headers.get('x-forwarded-for') || 'unknown'
+        await checkRateLimit(`register:${ip}`, {
+          max: 5, // 5 registrations
+          window: 3600, // per hour
+        })
 
-      // Register user
-      const user = await registerUser(body)
+        // Register user
+        const user = await registerUser(body)
 
-      // Generate tokens
-      const accessToken = await jwt.sign({ userId: user.id, type: 'access' })
-      const refreshToken = await jwtRefresh.sign({ userId: user.id, type: 'refresh' })
+        // Generate tokens
+        const accessToken = await jwt.sign({ userId: user.id, type: 'access' })
+        const refreshToken = await jwtRefresh.sign({ userId: user.id, type: 'refresh' })
 
-      logger.info(`User registered successfully: ${user.email}`)
+        logger.info(`User registered successfully: ${user.email}`)
 
-      return {
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            isEmailVerified: user.isEmailVerified,
+        return {
+          success: true,
+          data: {
+            user: {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+              isEmailVerified: user.isEmailVerified,
+            },
+            accessToken,
+            refreshToken,
           },
-          accessToken,
-          refreshToken,
-        },
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        
+        if (errorMessage.includes('Email already registered')) {
+          set.status = 400
+          return {
+            success: false,
+            error: 'Bad Request',
+            message: 'Email already registered',
+          }
+        }
+        
+        throw error
       }
     },
     {
@@ -64,35 +79,50 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth' })
   // ==================== LOGIN ====================
   .post(
     '/login',
-    async ({ body, jwt, jwtRefresh, checkRateLimit, request }) => {
-      // Rate limiting for login
-      const ip = request.headers.get('x-forwarded-for') || 'unknown'
-      await checkRateLimit(`login:${body.email}`, {
-        max: 5, // 5 login attempts
-        window: 900, // per 15 minutes
-      })
+    async ({ body, jwt, jwtRefresh, checkRateLimit, request, set }) => {
+      try {
+        // Rate limiting for login
+        const ip = request.headers.get('x-forwarded-for') || 'unknown'
+        await checkRateLimit(`login:${body.email}`, {
+          max: 5, // 5 login attempts
+          window: 900, // per 15 minutes
+        })
 
-      // Login user
-      const user = await loginUser(body)
+        // Login user
+        const user = await loginUser(body)
 
-      // Generate tokens
-      const accessToken = await jwt.sign({ userId: user.id, type: 'access' })
-      const refreshToken = await jwtRefresh.sign({ userId: user.id, type: 'refresh' })
+        // Generate tokens
+        const accessToken = await jwt.sign({ userId: user.id, type: 'access' })
+        const refreshToken = await jwtRefresh.sign({ userId: user.id, type: 'refresh' })
 
-      logger.info(`User logged in successfully: ${user.email}`)
+        logger.info(`User logged in successfully: ${user.email}`)
 
-      return {
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            isEmailVerified: user.isEmailVerified,
+        return {
+          success: true,
+          data: {
+            user: {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+              isEmailVerified: user.isEmailVerified,
+            },
+            accessToken,
+            refreshToken,
           },
-          accessToken,
-          refreshToken,
-        },
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        
+        if (errorMessage.includes('Invalid email or password')) {
+          set.status = 400
+          return {
+            success: false,
+            error: 'Bad Request',
+            message: 'Invalid email or password',
+          }
+        }
+        
+        throw error
       }
     },
     {

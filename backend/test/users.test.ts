@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'bun:test'
-import { getApp } from './test-setup'
+import { getApp, clearRateLimits, clearDatabase } from './test-setup'
 import { registerAndLoginUser } from './utils'
 
 describe('Users Module', () => {
@@ -7,6 +7,8 @@ describe('Users Module', () => {
 
   // Create a user once for all tests in this suite
   beforeAll(async () => {
+    await clearRateLimits()
+    await clearDatabase()
     userData = await registerAndLoginUser();
   });
 

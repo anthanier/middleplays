@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { requireVerifiedSeller } from '@/middlewares/auth'
+import { requireVerifiedSeller, requireAuth } from '@/middlewares/auth'
 import {
   createPostingSchema,
   createPostingResponseSchema,
@@ -11,16 +11,23 @@ import {
   listPostings,
 } from './service'
 
-export const postingsModule = new Elysia({ prefix: '/postings', name: 'postings-module' })
-
-  // ==================== CREATE NEW POSTING ====================
-  .use(requireVerifiedSeller) // ✅ FIXED: Use middleware first
+// Protected sub-module for POST /postings (create)
+const createPostingRoute = new Elysia()
+  .use(requireVerifiedSeller)
   .post(
     '/',
-    async ({ sellerUser, body, set }) => {
-      // sellerUser is guaranteed to be present by the requireVerifiedSeller middleware
-      const newPosting = await createPosting(sellerUser!.id, body);
-      set.status = 201; // 201 Created
+    async ({ isVerifiedSeller, sellerUser, body, set }) => {
+      if (!isVerifiedSeller || !sellerUser) {
+        set.status = 403
+        return {
+          success: false,
+          error: 'Forbidden',
+          message: 'Access denied. Verified seller account required.',
+        }
+      }
+      
+      const newPosting = await createPosting(sellerUser.id, body);
+      set.status = 201;
       return {
         success: true,
         data: {
@@ -38,8 +45,12 @@ export const postingsModule = new Elysia({ prefix: '/postings', name: 'postings-
       },
     }
   )
+
+export const postingsModule = new Elysia({ prefix: '/postings', name: 'postings-module' })
+  // Define protected routes first in sub-module
+  .use(createPostingRoute)
   
-  // ==================== LIST POSTINGS ====================
+  // Public routes - list postings
   .get(
     '/',
     async ({ query, set }) => {

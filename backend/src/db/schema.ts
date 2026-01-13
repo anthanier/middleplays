@@ -203,6 +203,9 @@ export const transactions = pgTable('transactions', {
   // Transaction flow
   status: transactionStatusEnum('status').notNull().default('pending'),
   
+  // Payment expiry
+  expiresAt: timestamp('expires_at'),
+  
   // Credentials delivery
   credentialsDeliveredAt: timestamp('credentials_delivered_at'),
   

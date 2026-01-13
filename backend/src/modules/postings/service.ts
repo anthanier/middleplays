@@ -5,31 +5,23 @@ import { logger } from '@/libs/logger'
 import { encryptCredentials } from '@/libs/crypto'
 import type { CreatePostingRequest, ListPostingsQuery } from './model'
 
-/**
- * Validates the provided 'details' object against the game's field definitions.
- * @param gameId The ID of the game.
- * @param details The dynamic details object to validate.
- */
 async function validatePostingDetails(gameId: number, details: Record<string, any>) {
   try {
-    // Get field definitions for this game
     const fieldDefs = await db.query.gameFieldDefinitions.findMany({
       where: eq(gameFieldDefinitions.gameId, gameId),
     });
 
     if (fieldDefs.length === 0) {
       logger.warn(`No field definitions found for game ${gameId}`);
-      return; // No validation needed if no fields defined
+      return;
     }
 
-    // Check required fields
     const requiredFields = fieldDefs.filter(f => f.isRequired);
     for (const field of requiredFields) {
       if (!(field.fieldName in details)) {
         throw new Error(`Required field '${field.fieldLabel}' is missing.`);
       }
       
-      // Basic type validation
       const value = details[field.fieldName];
       if (field.fieldType === 'number' && typeof value !== 'number') {
         throw new Error(`Field '${field.fieldLabel}' must be a number.`);
@@ -43,15 +35,8 @@ async function validatePostingDetails(gameId: number, details: Record<string, an
   }
 }
 
-
-/**
- * Creates a new game account posting.
- * @param sellerId The ID of the verified seller.
- * @param data The posting data.
- */
 export async function createPosting(sellerId: string, data: CreatePostingRequest) {
   try {
-    // 1. Validate that the game exists
     const game = await db.query.games.findFirst({
       where: eq(games.id, data.gameId),
     });
@@ -60,14 +45,12 @@ export async function createPosting(sellerId: string, data: CreatePostingRequest
       throw new Error('Game not found or inactive.');
     }
 
-    // 2. Validate posting details against game field definitions
     await validatePostingDetails(data.gameId, data.details);
 
-    // 3. Encrypt credentials
     const credentialsString = JSON.stringify(data.credentials);
     const encryptedCredentials = await encryptCredentials(credentialsString);
 
-    // 4. Create the posting
+    // ✅ FIXED: Explicitly cast loginMethod to match enum type
     const [newPosting] = await db.insert(gameAccounts).values({
       sellerId,
       gameId: data.gameId,
@@ -76,7 +59,7 @@ export async function createPosting(sellerId: string, data: CreatePostingRequest
       price: String(data.price),
       details: data.details,
       credentialsEncrypted: encryptedCredentials,
-      loginMethod: data.loginMethod,
+      loginMethod: data.loginMethod as 'moonton' | 'google' | 'facebook' | 'vk' | 'apple' | 'email',
       images: data.images,
       status: 'active',
     }).returning();
@@ -97,18 +80,12 @@ export async function createPosting(sellerId: string, data: CreatePostingRequest
   }
 }
 
-
-/**
- * Lists, filters, and paginates game account postings.
- * @param query - The query parameters for filtering and pagination.
- */
 export async function listPostings(query: ListPostingsQuery) {
   const { page = 1, limit = 20, gameId, sellerId, minPrice, maxPrice, sortBy = 'newest', search } = query;
   const offset = (page - 1) * limit;
 
-  // Build dynamic where conditions
   const conditions = [
-    eq(gameAccounts.status, 'active'), // Only show active postings
+    eq(gameAccounts.status, 'active'),
   ];
   if (gameId) conditions.push(eq(gameAccounts.gameId, gameId));
   if (sellerId) conditions.push(eq(gameAccounts.sellerId, sellerId));
@@ -118,7 +95,6 @@ export async function listPostings(query: ListPostingsQuery) {
 
   const where = and(...conditions);
 
-  // Build dynamic order by clause
   let orderBy;
   switch (sortBy) {
     case 'price_asc':
@@ -137,7 +113,6 @@ export async function listPostings(query: ListPostingsQuery) {
   }
   
   try {
-    // Run queries in parallel for efficiency
     const [postings, totalResult] = await Promise.all([
       db.select({
         id: gameAccounts.id,

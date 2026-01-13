@@ -3,7 +3,6 @@ import { transactions, gameAccounts, users } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { logger } from '@/libs/logger'
 import { calculateFees } from './utils'
-import { createId } from '@paralleldrive/cuid2'
 import type { CreatePurchaseRequest } from './model'
 // MOCK Xendit client - in a real project, this would be in its own lib file.
 import { xenditClient } from '@/libs/xendit'
@@ -44,9 +43,7 @@ export async function createPurchase(buyerId: string, data: CreatePurchaseReques
       const fees = calculateFees(price);
 
       // 4. Create the transaction record
-      const transactionId = createId(); // Generate a unique transaction ID
       const [newTransaction] = await tx.insert(transactions).values({
-        id: transactionId,
         buyerId,
         sellerId: posting.sellerId,
         gameAccountId: posting.id,
@@ -72,7 +69,7 @@ export async function createPurchase(buyerId: string, data: CreatePurchaseReques
 
       // 6. MOCK - Create an invoice with Xendit
       const xenditInvoice = await xenditClient.createInvoice({
-        external_id: transactionId,
+        external_id: newTransaction.id,
         amount: fees.totalBuyerPaid,
         payer_email: buyer.email,
         description: `Purchase of ${posting.title}`,
@@ -90,7 +87,7 @@ export async function createPurchase(buyerId: string, data: CreatePurchaseReques
             // Here we set it to 1 hour from now.
             expiresAt: new Date(Date.now() + 3600 * 1000) 
         })
-        .where(eq(transactions.id, transactionId));
+        .where(eq(transactions.id, newTransaction.id));
 
       return {
         transactionId: newTransaction.id,

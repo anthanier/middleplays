@@ -38,31 +38,43 @@ export const authMiddleware = new Elysia({ name: 'auth' })
 // 2. Gunakan pattern plugin yang konsisten
 export const requireAuth = new Elysia({ name: 'require-auth' })
   .use(authMiddleware)
-  .onBeforeHandle({ as: 'global' }, ({ userId, set }) => {
-    // Sekarang userId sudah tidak merah lagi
-    if (!userId) {
-      set.status = 401
-      throw new Error('Unauthorized. Please login.')
-    }
-  })
+  .guard(
+    {
+      beforeHandle({ userId, set }) {
+        if (!userId) {
+          set.status = 401
+          return false
+        }
+      },
+    },
+    (app) =>
+      app.onError(({ set }) => {
+        set.status = 401
+        return {
+          success: false,
+          error: 'Unauthorized',
+          message: 'Unauthorized. Please login.',
+        }
+      })
+  )
+
+
 
 // 3. Gunakan { as: 'global' } juga di sini agar sellerUser bisa dipake di route
 export const requireVerifiedSeller = new Elysia({ name: 'require-verified-seller' })
   .use(requireAuth)
-  .derive({ as: 'global' }, async ({ userId, set }) => {
+  .derive({ as: 'global' }, async ({ userId }) => {
     const { db } = await import('@/db')
     const { users } = await import('@/db/schema')
     const { eq } = await import('drizzle-orm')
 
-    // Pakai non-null assertion (!) karena sudah divalidasi di requireAuth sebelumnya
     const user = await db.query.users.findFirst({
       where: eq(users.id, userId!),
     })
 
-    if (!user || user.role !== 'verified_seller') {
-      set.status = 403
-      throw new Error('Access denied. Verified seller account required.')
+    // Return both user and isVerifiedSeller flag
+    return { 
+      sellerUser: user || null,
+      isVerifiedSeller: user && user.role === 'verified_seller' ? true : false
     }
-
-    return { sellerUser: user }
   })

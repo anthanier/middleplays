@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test'
-import { getApp } from './test-setup'
+import { getApp, clearRateLimits, clearDatabase } from './test-setup'
 import { db } from '@/db'
 import { games, gameFieldDefinitions } from '@/db/schema'
 import { eq } from 'drizzle-orm'
@@ -11,6 +11,7 @@ describe('Games Module', () => {
   let app: any;
 
   beforeEach(async () => {
+    await clearRateLimits()
     app = getApp(); // Get app instance for each test
     const uniqueGameName = `Test Game - ${createId()}`;
     const uniqueGameSlug = `test-game-${createId()}`;
@@ -45,7 +46,8 @@ describe('Games Module', () => {
   });
   
   afterEach(async () => {
-    await db.delete(games).where(eq(games.id, createdGame.id));
+    // Don't delete games here - they might have references
+    // The global clearDatabase will handle cleanup
   });
 
 
@@ -60,7 +62,7 @@ describe('Games Module', () => {
     // Check if our created game is in the list
     const foundGame = body.data.find((g: any) => g.id === createdGame.id);
     expect(foundGame).toBeDefined();
-    expect(foundGame.name).toBe('Test Game For Testing');
+    expect(foundGame.name).toBe(createdGame.name);  // Check against actual created game name
   });
 
   it('should get field definitions for a specific game', async () => {

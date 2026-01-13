@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { getApp } from './test-setup'
+import { getApp, clearRateLimits, clearDatabase } from './test-setup'
 import { createId } from '@paralleldrive/cuid2'
 
 describe('Auth Module', () => {
@@ -8,6 +8,16 @@ describe('Auth Module', () => {
     password: 'TestPassword123',
     fullName: 'Auth Test User',
   }
+
+  // Clear before and after tests
+  beforeAll(async () => {
+    await clearRateLimits()
+    await clearDatabase()
+  })
+
+  afterAll(async () => {
+    await clearDatabase()
+  })
 
   it('should register a new user successfully', async () => {
     const app = getApp(); // Get the app instance

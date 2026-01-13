@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
-import { getApp } from './test-setup'
+import { getApp, clearRateLimits, clearDatabase } from './test-setup'
 import { registerAndLoginUser } from './utils'
 import { db } from '@/db'
 import { games, gameAccounts } from '@/db/schema'
@@ -10,8 +10,12 @@ describe('Postings Module', () => {
   let sellerData: any;
   let gameData: any;
   let createdPostingId: string;
+  let createdGameSlug: string;
+  let createdGameId: string;
+  let createdSellerId: string;
 
   beforeEach(async () => {
+    await clearRateLimits()
     const app = getApp(); // Get app instance for each test
     // Create a verified seller and a game for our tests
     sellerData = await registerAndLoginUser('verified_seller');
@@ -23,9 +27,8 @@ describe('Postings Module', () => {
   });
 
   afterEach(async () => {
-    // Clean up created data
-    if (gameData) await db.delete(games).where(eq(games.id, gameData.id));
-    // The rest of the data (users, postings) can be left in the test DB
+    // Don't delete games here - they might have references
+    // The global clearDatabase will handle cleanup
   });
 
   it('should not allow a regular user to create a posting', async () => {
@@ -85,6 +88,9 @@ describe('Postings Module', () => {
     expect(body.success).toBe(true);
     expect(body.data.id).toBeDefined();
     createdPostingId = body.data.id;
+    createdGameId = gameData.id;
+    createdGameSlug = gameData.slug;
+    createdSellerId = sellerData.userId;
   });
 
   it('should list all postings', async () => {
@@ -99,18 +105,18 @@ describe('Postings Module', () => {
     const ourPosting = body.data.find((p: any) => p.id === createdPostingId);
     expect(ourPosting).toBeDefined();
     expect(ourPosting.title).toBe('Awesome Test Account for Sale');
-    expect(ourPosting.game.slug).toBe('posting-test-game');
-    expect(ourPosting.seller.id).toBe(sellerData.userId);
+    expect(ourPosting.game.slug).toBe(createdGameSlug);
+    expect(ourPosting.seller.id).toBe(createdSellerId);
   });
 
   it('should filter postings by gameId', async () => {
     const app = getApp(); // Get app instance for each test
-    const res = await app.handle(new Request(`http://localhost/postings?gameId=${gameData.id}`));
+    const res = await app.handle(new Request(`http://localhost/postings?gameId=${createdGameId}`));
     const body = await res.json();
     
     expect(body.success).toBe(true);
     // All returned items should have the correct gameId
-    const allMatch = body.data.every((p: any) => p.game.slug === 'posting-test-game');
+    const allMatch = body.data.every((p: any) => p.game.slug === createdGameSlug);
     expect(allMatch).toBe(true);
     expect(body.data.length).toBeGreaterThan(0);
   });
